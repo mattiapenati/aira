@@ -1,0 +1,13 @@
+[package]
+name = "aira-tiff"
+description = "TIFF image reader"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+byteorder = "1"
+
+[dev-dependencies]
+claims = "0.8"
