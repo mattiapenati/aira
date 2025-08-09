@@ -1,0 +1,8 @@
+[workspace]
+members = ["crates/*"]
+resolver = "2"
+
+[workspace.package]
+authors = ["Mattia Penati <mattia.penati@protonmail.com>"]
+edition = "2024"
+license = "MIT OR Apache-2.0"
