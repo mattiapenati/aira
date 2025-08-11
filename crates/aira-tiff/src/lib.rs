@@ -2,8 +2,8 @@
 
 #[doc(inline)]
 pub use self::{
-    decoder::Decoder, dtype::DType, endian::ByteOrder, error::Error, ratio::Ratio, tag::Tag,
-    version::Version,
+    decoder::Decoder, dtype::DType, endian::ByteOrder, entry::Entry, error::Error,
+    metadata::Metadata, ratio::Ratio, tag::Tag, version::Version,
 };
 
 mod dtype;
@@ -14,3 +14,5 @@ mod tag;
 mod version;
 
 pub mod decoder;
+pub mod entry;
+pub mod metadata;

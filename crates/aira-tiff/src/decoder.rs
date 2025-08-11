@@ -86,6 +86,11 @@ impl<R> Decoder<R> {
         self.version
     }
 
+    /// Unwrap the reader to access the underlying reader.
+    pub fn into_inner(self) -> R {
+        self.reader.into_inner()
+    }
+
     /// Get an iterator over the directories of the TIFF image.
     pub fn directories(&mut self) -> Directories<'_, R> {
         let next_offset = match self.version {
@@ -326,6 +331,26 @@ impl<R> Entry<'_, R> {
                 self.dtype
             )));
         }
+
+        self.decoder
+            .reader
+            .seek(std::io::SeekFrom::Start(self.offset))?;
+        T::decode_into(&mut self.decoder.reader, buffer)
+    }
+
+    /// Decode values into an uninitialized buffer, returning the initialized slice.
+    pub(crate) unsafe fn unchecked_decode_into<T>(
+        &mut self,
+        buffer: &mut [std::mem::MaybeUninit<T>],
+    ) -> Result<(), Error>
+    where
+        R: std::io::Read + std::io::Seek,
+        T: Decode,
+    {
+        use std::io::Seek;
+
+        let buffer =
+            unsafe { std::slice::from_raw_parts_mut(buffer.as_mut_ptr() as *mut T, buffer.len()) };
 
         self.decoder
             .reader

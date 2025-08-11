@@ -1,6 +1,11 @@
 use std::sync::Arc;
 
-use crate::{dtype::UnknownDType, endian::InvalidSignature, version::InvalidVersion};
+use crate::{
+    dtype::UnknownDType,
+    endian::InvalidSignature,
+    metadata::{MissingRequiredTag, UnexpectedDType},
+    version::InvalidVersion,
+};
 
 /// An error that can occur in this crate.
 #[derive(Clone)]
@@ -26,6 +31,10 @@ enum ErrorKind {
     InvalidVersion(InvalidVersion),
     /// An unknown datatype was encountered.
     UnknownDType(UnknownDType),
+    /// An unexpected datatype was encountered.
+    UnexpectedDType(UnexpectedDType),
+    /// A required tag is missing.
+    MissingRequiredTag(MissingRequiredTag),
 }
 
 impl Error {
@@ -80,6 +89,8 @@ impl std::fmt::Display for ErrorKind {
             ErrorKind::InvalidSignature(err) => err.fmt(f),
             ErrorKind::InvalidVersion(err) => err.fmt(f),
             ErrorKind::UnknownDType(err) => err.fmt(f),
+            ErrorKind::UnexpectedDType(err) => err.fmt(f),
+            ErrorKind::MissingRequiredTag(err) => err.fmt(f),
         }
     }
 }
@@ -117,5 +128,64 @@ impl From<UnknownDType> for Error {
     #[inline(always)]
     fn from(err: UnknownDType) -> Self {
         Error::from(ErrorKind::UnknownDType(err))
+    }
+}
+
+impl From<UnexpectedDType> for Error {
+    #[inline(always)]
+    fn from(err: UnexpectedDType) -> Self {
+        Error::from(ErrorKind::UnexpectedDType(err))
+    }
+}
+
+impl From<MissingRequiredTag> for Error {
+    #[inline(always)]
+    fn from(err: MissingRequiredTag) -> Self {
+        Error::from(ErrorKind::MissingRequiredTag(err))
+    }
+}
+
+/// Converts a value into an [`Error`].
+pub(crate) trait IntoError {
+    fn into_error(self) -> Error;
+}
+
+impl IntoError for Error {
+    #[inline(always)]
+    fn into_error(self) -> Error {
+        self
+    }
+}
+
+impl IntoError for &'static str {
+    #[inline(always)]
+    fn into_error(self) -> Error {
+        Error::from_static_str(self)
+    }
+}
+
+impl IntoError for String {
+    #[inline(always)]
+    fn into_error(self) -> Error {
+        Error::from_args(format_args!("{self}"))
+    }
+}
+
+/// Provides additional context for an error.
+pub(crate) trait ErrorContext {
+    fn with_context<E: IntoError>(self, context: impl FnOnce() -> E) -> Self;
+}
+
+impl ErrorContext for Error {
+    fn with_context<E: IntoError>(self, context: impl FnOnce() -> E) -> Self {
+        let mut err = context().into_error();
+        Arc::get_mut(&mut err.inner).unwrap().cause = Some(self);
+        err
+    }
+}
+
+impl<T> ErrorContext for Result<T, Error> {
+    fn with_context<E: IntoError>(self, context: impl FnOnce() -> E) -> Self {
+        self.map_err(|err| err.with_context(context))
     }
 }

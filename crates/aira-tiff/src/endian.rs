@@ -51,6 +51,10 @@ pub(crate) mod sealed {
         pub fn inner(&self) -> &R {
             &self.reader
         }
+
+        pub fn into_inner(self) -> R {
+            self.reader
+        }
     }
 
     impl<R: std::io::Read> std::io::Read for EndianReader<R> {
