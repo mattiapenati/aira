@@ -8,6 +8,13 @@ license.workspace = true
 
 [dependencies]
 byteorder = "1"
+flate2 = { version = "1", optional = true, default-features = false, features = [
+  "zlib-rs",
+] }
 
 [dev-dependencies]
 claims = "0.8"
+
+[features]
+default = ["deflate"]
+deflate = ["dep:flate2"]

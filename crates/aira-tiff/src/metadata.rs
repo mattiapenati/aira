@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::{decoder, entry::EntryRef, error::ErrorContext, DType, Entry, Error, Tag};
+use crate::{decoder, entry::EntryRef, error::ErrorContext, Compression, DType, Entry, Error, Tag};
 
 /// Metadata of TIFF directory.
 #[derive(Debug)]
@@ -11,6 +11,8 @@ pub struct Metadata {
     pub dimensions: (u32, u32),
     /// Storage layout of the image data.
     pub layout: Layout,
+    /// Compression algorithm used for the image data.
+    pub compression: Compression,
     /// All the others entries in the directory.
     entries: BTreeMap<Tag, Entry>,
     /// The locations of the chunks that make up the image.
@@ -63,6 +65,11 @@ impl Metadata {
     /// Returns an iterator over the custom entries in the metadata.
     pub fn custom_entries(&self) -> CustomEntries<'_> {
         CustomEntries(self.entries.iter())
+    }
+
+    /// Returns the custom entry associated to the given tag.
+    pub fn custom_entry(&self, tag: Tag) -> Option<EntryRef<'_>> {
+        self.entries.get(&tag).map(Entry::as_ref)
     }
 }
 
@@ -210,6 +217,7 @@ struct MetadataBuilder {
     tile_length: Option<u32>,
     tile_offsets: Option<Vec<u64>>,
     tile_byte_counts: Option<Vec<u64>>,
+    compression: Option<Compression>,
     entries: BTreeMap<Tag, Entry>,
 }
 
@@ -290,6 +298,13 @@ impl MetadataBuilder {
             Tag::TILE_BYTE_COUNTS => {
                 self.tile_byte_counts = Some(decode!(entry as Vec<u64>));
             }
+            Tag::COMPRESSION => {
+                let compression = match entry.dtype {
+                    DType::Short => Compression(entry.decode::<u16>()?),
+                    dtype => Err(UnexpectedDType(dtype))?,
+                };
+                self.compression = Some(compression);
+            }
             tag => {
                 self.entries.insert(tag, Entry::from_decoder(entry)?);
             }
@@ -310,6 +325,7 @@ impl MetadataBuilder {
             strip_byte_counts,
             tile_offsets,
             tile_byte_counts,
+            compression,
             entries,
         } = self;
 
@@ -363,11 +379,16 @@ impl MetadataBuilder {
                 "Number of strip/tiles offsets does not match number of byte counts",
             ));
         }
-        if offsets.len() != layout.expected_chunks_count(image_width, image_length) {
-            return Err(Error::from_static_str(
-                "Number of strip/tiles offsets does not match expected chunk counts for the given image dimensions",
-            ));
+
+        let actual_chunks_count = offsets.len();
+        let expected_chunks_count = layout.expected_chunks_count(image_width, image_length);
+        if actual_chunks_count < expected_chunks_count {
+            return Err(Error::from_args(format_args!(
+                "Number of strip/tiles offsets does not match expected chunk counts for the given image dimensions: actual {actual_chunks_count}, expected {expected_chunks_count}",
+            )));
         }
+
+        let compression = compression.unwrap_or_default();
 
         let chunks = offsets
             .into_iter()
@@ -378,6 +399,7 @@ impl MetadataBuilder {
         Ok(Metadata {
             dimensions,
             layout,
+            compression,
             chunks,
             entries,
         })

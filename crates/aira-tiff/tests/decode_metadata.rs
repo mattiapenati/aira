@@ -1,21 +1,15 @@
 use std::io::{Read, Seek};
 
-use aira_tiff::{metadata::Layout, Decoder, Metadata};
+use aira_tiff::{metadata::Layout, Compression};
 use claims::*;
+
+mod utils;
 
 #[test]
 fn decode_metadata() {
     let file = assert_ok!(std::fs::File::open("tests/images/tiled-rect-rgb-u8.tif"));
     let mut reader = std::io::BufReader::new(file);
-
-    let metadata = {
-        let mut decoder = assert_ok!(Decoder::new(&mut reader));
-        let mut directories = decoder.directories();
-        let directory = assert_some!(assert_ok!(directories.next_directory()));
-        let metadata = assert_ok!(Metadata::from_decoder(directory));
-        assert_none!(assert_ok!(directories.next_directory()));
-        metadata
-    };
+    let metadata = utils::get_the_only_one_directory(&mut reader);
 
     assert_eq!(metadata.dimensions, (490, 367));
     assert_eq!(
@@ -25,6 +19,8 @@ fn decode_metadata() {
             length: 128,
         }
     );
+    assert_eq!(metadata.compression, Compression::NONE);
+
     assert_eq!(metadata.chunk_size(), (32, 128));
     assert_eq!(metadata.chunks_count(), 48);
 
