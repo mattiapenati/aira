@@ -2,17 +2,34 @@
 
 use std::collections::BTreeMap;
 
-use crate::{decoder, entry::EntryRef, error::ErrorContext, Compression, DType, Entry, Error, Tag};
+use crate::{
+    decoder, entry::EntryRef, error::ErrorContext, Compression, DType, Entry, Error,
+    Interpretation, SubfileType, Tag,
+};
 
 /// Metadata of TIFF directory.
 #[derive(Debug)]
 pub struct Metadata {
     /// A tuple with the width and height of the image in pixels.
     pub dimensions: (u32, u32),
+    /// The color space of the image data.
+    pub interpretation: Interpretation,
     /// Storage layout of the image data.
     pub layout: Layout,
     /// Compression algorithm used for the image data.
     pub compression: Compression,
+    /// A general indication of the kind of data contained in this subfile.
+    pub subfile_type: SubfileType,
+    /// Person who created the image.
+    artist: Option<String>,
+    /// Copyright notice.
+    copyright: Option<String>,
+    /// The computer and/or operating system in use at the time of image creation.
+    host_computer: Option<String>,
+    /// A string that describes the subject of the image.
+    description: Option<String>,
+    /// Name and version number of the software package(s) used to create the image.
+    software: Option<String>,
     /// All the others entries in the directory.
     entries: BTreeMap<Tag, Entry>,
     /// The locations of the chunks that make up the image.
@@ -35,6 +52,32 @@ impl Metadata {
         }
 
         builder.build()
+    }
+
+    /// Returns a string containing the name of the person who created the image, if available.
+    pub fn artist(&self) -> Option<&str> {
+        self.artist.as_deref()
+    }
+
+    /// Returns the copyright notice of the image, if available.
+    pub fn copyright(&self) -> Option<&str> {
+        self.copyright.as_deref()
+    }
+
+    /// Returns the host computer used to create the image, if available.
+    pub fn host_computer(&self) -> Option<&str> {
+        self.host_computer.as_deref()
+    }
+
+    /// Returns a string that describes the subject of the image, if available.
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_deref()
+    }
+
+    /// Returns the name and version number of the software package(s) used to create the image, if
+    /// available.
+    pub fn software(&self) -> Option<&str> {
+        self.software.as_deref()
     }
 
     /// Returns a tuple with the default width and height of chunks.
@@ -210,6 +253,7 @@ impl std::iter::DoubleEndedIterator for CustomEntries<'_> {
 struct MetadataBuilder {
     image_width: Option<u32>,
     image_length: Option<u32>,
+    interpretation: Option<Interpretation>,
     rows_per_strip: Option<u32>,
     strip_offsets: Option<Vec<u64>>,
     strip_byte_counts: Option<Vec<u64>>,
@@ -218,6 +262,12 @@ struct MetadataBuilder {
     tile_offsets: Option<Vec<u64>>,
     tile_byte_counts: Option<Vec<u64>>,
     compression: Option<Compression>,
+    subfile_type: Option<SubfileType>,
+    artist: Option<String>,
+    copyright: Option<String>,
+    host_computer: Option<String>,
+    description: Option<String>,
+    software: Option<String>,
     entries: BTreeMap<Tag, Entry>,
 }
 
@@ -228,6 +278,39 @@ impl MetadataBuilder {
         R: std::io::Read + std::io::Seek,
     {
         macro_rules! decode {
+            ($entry:ident into u16) => {{
+                match $entry.dtype {
+                    DType::Short => $entry.decode::<u16>()?,
+                    dtype => Err(UnexpectedDType(dtype))?,
+                }
+            }};
+            ($entry:ident into u32) => {{
+                match $entry.dtype {
+                    DType::Long => $entry.decode::<u32>()?,
+                    dtype => Err(UnexpectedDType(dtype))?,
+                }
+            }};
+            ($entry:ident into String) => {{
+                match $entry.dtype {
+                    DType::Ascii => {
+                        let count = $entry.count as usize;
+                        let mut bytes = Vec::with_capacity(count);
+                        let buffer = bytes.spare_capacity_mut();
+                        unsafe {
+                            entry.unchecked_decode_into(&mut buffer[..count])?;
+                            bytes.set_len(count);
+                        }
+                        std::ffi::CStr::from_bytes_with_nul(&bytes)
+                            .map_err(|err| Error::from_args(format_args!("Invalid string: {err}")))?
+                            .to_str()
+                            .map_err(|err| {
+                                Error::from_args(format_args!("Invalid UTF-8 stirng: {err}"))
+                            })?
+                            .to_owned()
+                    }
+                    dtype => Err(UnexpectedDType(dtype))?,
+                }
+            }};
             ($entry:ident as u32) => {{
                 match $entry.dtype {
                     DType::Short => $entry.decode::<u16>()? as u32,
@@ -277,6 +360,11 @@ impl MetadataBuilder {
             Tag::IMAGE_LENGTH => {
                 self.image_length = Some(decode!(entry as u32));
             }
+            Tag::PHOTOMETRIC_INTERPRETATION => {
+                let interpretation = decode!(entry into u16);
+                let interpretation = Interpretation(interpretation);
+                self.interpretation = Some(interpretation);
+            }
             Tag::ROWS_PER_STRIP => {
                 self.rows_per_strip = Some(decode!(entry as u32));
             }
@@ -299,11 +387,34 @@ impl MetadataBuilder {
                 self.tile_byte_counts = Some(decode!(entry as Vec<u64>));
             }
             Tag::COMPRESSION => {
-                let compression = match entry.dtype {
-                    DType::Short => Compression(entry.decode::<u16>()?),
-                    dtype => Err(UnexpectedDType(dtype))?,
-                };
+                let compression = decode!(entry into u16);
+                let compression = Compression(compression);
                 self.compression = Some(compression);
+            }
+            Tag::NEW_SUBFILE_TYPE => {
+                let subfile_type = decode!(entry into u32);
+                let subfile_type = SubfileType::from_u32(subfile_type);
+                self.subfile_type = Some(subfile_type);
+            }
+            Tag::ARTIST => {
+                let artist = decode!(entry into String);
+                self.artist = Some(artist);
+            }
+            Tag::HOST_COMPUTER => {
+                let host_computer = decode!(entry into String);
+                self.host_computer = Some(host_computer);
+            }
+            Tag::IMAGE_DESCRIPTION => {
+                let description = decode!(entry into String);
+                self.description = Some(description);
+            }
+            Tag::COPYRIGHT => {
+                let copyright = decode!(entry into String);
+                self.copyright = Some(copyright);
+            }
+            Tag::SOFTWARE => {
+                let software = decode!(entry into String);
+                self.software = Some(software);
             }
             tag => {
                 self.entries.insert(tag, Entry::from_decoder(entry)?);
@@ -318,6 +429,7 @@ impl MetadataBuilder {
         let Self {
             image_width,
             image_length,
+            interpretation,
             rows_per_strip,
             tile_width,
             tile_length,
@@ -326,6 +438,12 @@ impl MetadataBuilder {
             tile_offsets,
             tile_byte_counts,
             compression,
+            subfile_type,
+            artist,
+            copyright,
+            host_computer,
+            description,
+            software,
             entries,
         } = self;
 
@@ -340,6 +458,9 @@ impl MetadataBuilder {
         }
 
         let dimensions = (image_width, image_length);
+
+        let interpretation =
+            interpretation.ok_or(MissingRequiredTag(Tag::PHOTOMETRIC_INTERPRETATION))?;
 
         let (layout, offsets, byte_counts) = match (
             rows_per_strip,
@@ -388,19 +509,28 @@ impl MetadataBuilder {
             )));
         }
 
-        let compression = compression.unwrap_or_default();
-
         let chunks = offsets
             .into_iter()
             .zip(byte_counts)
             .map(|(offset, byte_count)| ChunkLoc { offset, byte_count })
             .collect();
 
+        let compression = compression.unwrap_or_default();
+
+        let subfile_type = subfile_type.unwrap_or_default();
+
         Ok(Metadata {
             dimensions,
+            interpretation,
             layout,
-            compression,
             chunks,
+            compression,
+            subfile_type,
+            artist,
+            copyright,
+            host_computer,
+            description,
+            software,
             entries,
         })
     }

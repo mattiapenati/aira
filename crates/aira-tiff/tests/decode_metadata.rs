@@ -1,6 +1,6 @@
 use std::io::{Read, Seek};
 
-use aira_tiff::{metadata::Layout, Compression};
+use aira_tiff::{metadata::Layout, Compression, Interpretation, SubfileType};
 use claims::*;
 
 mod utils;
@@ -12,6 +12,7 @@ fn decode_metadata() {
     let metadata = utils::get_the_only_one_directory(&mut reader);
 
     assert_eq!(metadata.dimensions, (490, 367));
+    assert_eq!(metadata.interpretation, Interpretation::RGB);
     assert_eq!(
         metadata.layout,
         Layout::Tiles {
@@ -20,6 +21,13 @@ fn decode_metadata() {
         }
     );
     assert_eq!(metadata.compression, Compression::NONE);
+    assert_eq!(metadata.subfile_type, SubfileType::default());
+
+    assert_none!(metadata.artist());
+    assert_none!(metadata.copyright());
+    assert_none!(metadata.host_computer());
+    assert_none!(metadata.description());
+    assert_none!(metadata.software());
 
     assert_eq!(metadata.chunk_size(), (32, 128));
     assert_eq!(metadata.chunks_count(), 48);
