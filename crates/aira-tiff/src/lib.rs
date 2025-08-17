@@ -26,8 +26,9 @@ compile_error!("features 'chrono' and 'jiff' are mutually exclusive");
 pub use self::{
     compression::Compression, decoder::Decoder, dtype::DType, endian::ByteOrder, entry::Entry,
     error::Error, interpretation::Interpretation, metadata::Metadata,
-    planar_configuration::PlanarConfiguration, ratio::Ratio, resolution_unit::ResolutionUnit,
-    sample_format::SampleFormat, subfile_type::SubfileType, tag::Tag, version::Version,
+    planar_configuration::PlanarConfiguration, predictor::Predictor, ratio::Ratio,
+    resolution_unit::ResolutionUnit, sample_format::SampleFormat, subfile_type::SubfileType,
+    tag::Tag, version::Version,
 };
 
 mod dtype;
@@ -45,4 +46,5 @@ pub mod compression;
 pub mod decoder;
 pub mod entry;
 pub mod metadata;
+pub mod predictor;
 pub mod ratio;
