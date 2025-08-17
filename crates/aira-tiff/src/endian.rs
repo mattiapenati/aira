@@ -24,6 +24,19 @@ impl std::fmt::Display for InvalidSignature {
 }
 
 impl ByteOrder {
+    /// Returns the native byteorder.
+    pub const fn native() -> Self {
+        cfg_if::cfg_if! {
+            if #[cfg(target_endian = "little")] {
+                Self::LittleEndian
+            } else if #[cfg(target_endian = "big")] {
+                Self::BigEndian
+            } else {
+                compile_error!("Unsupported target endianness");
+            }
+        }
+    }
+
     /// Detects the byte order from the given bytes.
     pub(crate) fn try_from_signature(signature: [u8; 2]) -> Result<Self, InvalidSignature> {
         match &signature {

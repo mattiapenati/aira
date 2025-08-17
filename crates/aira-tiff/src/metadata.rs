@@ -10,7 +10,8 @@ use jiff::civil::DateTime;
 
 use crate::{
     decoder, entry::EntryRef, error::ErrorContext, Compression, DType, Entry, Error,
-    Interpretation, PlanarConfiguration, Ratio, ResolutionUnit, SampleFormat, SubfileType, Tag,
+    Interpretation, PlanarConfiguration, Predictor, Ratio, ResolutionUnit, SampleFormat,
+    SubfileType, Tag,
 };
 
 /// Metadata of TIFF directory.
@@ -24,6 +25,8 @@ pub struct Metadata {
     pub layout: Layout,
     /// Compression algorithm used for the image data.
     pub compression: Compression,
+    /// The operator applied to the image data before encoding scheme.
+    pub predictor: Predictor,
     /// A general indication of the kind of data contained in this subfile.
     pub subfile_type: SubfileType,
     /// How the components of each pixel are stored.
@@ -322,6 +325,7 @@ struct MetadataBuilder {
     tile_offsets: Option<Vec<u64>>,
     tile_byte_counts: Option<Vec<u64>>,
     compression: Option<Compression>,
+    predictor: Option<Predictor>,
     subfile_type: Option<SubfileType>,
     configuration: Option<PlanarConfiguration>,
     xresolution: Option<Ratio<u32>>,
@@ -499,6 +503,11 @@ impl MetadataBuilder {
                 let compression = Compression(compression);
                 self.compression = Some(compression);
             }
+            Tag::PREDICTOR => {
+                let predictor = decode!(entry into u16);
+                let predictor = Predictor(predictor);
+                self.predictor = Some(predictor);
+            }
             Tag::NEW_SUBFILE_TYPE => {
                 let subfile_type = decode!(entry into u32);
                 let subfile_type = SubfileType::from_u32(subfile_type);
@@ -577,6 +586,7 @@ impl MetadataBuilder {
             tile_offsets,
             tile_byte_counts,
             compression,
+            predictor,
             subfile_type,
             configuration,
             xresolution,
@@ -663,6 +673,7 @@ impl MetadataBuilder {
             .collect();
 
         let compression = compression.unwrap_or_default();
+        let predictor = predictor.unwrap_or_default();
 
         let subfile_type = subfile_type.unwrap_or_default();
 
@@ -733,6 +744,7 @@ impl MetadataBuilder {
             layout,
             chunks,
             compression,
+            predictor,
             subfile_type,
             configuration,
             resolution,
