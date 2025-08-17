@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use crate::{
     decoder, entry::EntryRef, error::ErrorContext, Compression, DType, Entry, Error,
-    Interpretation, SubfileType, Tag,
+    Interpretation, SampleFormat, SubfileType, Tag,
 };
 
 /// Metadata of TIFF directory.
@@ -20,6 +20,8 @@ pub struct Metadata {
     pub compression: Compression,
     /// A general indication of the kind of data contained in this subfile.
     pub subfile_type: SubfileType,
+    /// Specify how to interpret the pixel data.
+    samples: Vec<Sample>,
     /// Person who created the image.
     artist: Option<String>,
     /// Copyright notice.
@@ -52,6 +54,11 @@ impl Metadata {
         }
 
         builder.build()
+    }
+
+    /// Returns a slice of samples that make up the pixel data.
+    pub fn samples(&self) -> &[Sample] {
+        &self.samples
     }
 
     /// Returns a string containing the name of the person who created the image, if available.
@@ -113,6 +120,22 @@ impl Metadata {
     /// Returns the custom entry associated to the given tag.
     pub fn custom_entry(&self, tag: Tag) -> Option<EntryRef<'_>> {
         self.entries.get(&tag).map(Entry::as_ref)
+    }
+}
+
+/// A single component of a pixel.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Sample {
+    /// Specify how to interpret the pixel data.
+    pub format: SampleFormat,
+    /// The number of bits used to represent this sample.
+    pub bits: u16,
+}
+
+impl Sample {
+    /// Creates a new [`Sample`]` with the given format and bits.
+    pub fn new(format: SampleFormat, bits: u16) -> Self {
+        Self { format, bits }
     }
 }
 
@@ -263,6 +286,9 @@ struct MetadataBuilder {
     tile_byte_counts: Option<Vec<u64>>,
     compression: Option<Compression>,
     subfile_type: Option<SubfileType>,
+    samples_per_pixel: Option<u16>,
+    bits_per_sample: Option<Vec<u16>>,
+    sample_format: Option<Vec<SampleFormat>>,
     artist: Option<String>,
     copyright: Option<String>,
     host_computer: Option<String>,
@@ -281,6 +307,40 @@ impl MetadataBuilder {
             ($entry:ident into u16) => {{
                 match $entry.dtype {
                     DType::Short => $entry.decode::<u16>()?,
+                    dtype => Err(UnexpectedDType(dtype))?,
+                }
+            }};
+            ($entry:ident into Vec<u16>) => {{
+                match $entry.dtype {
+                    DType::Short => {
+                        let count = entry.count as usize;
+                        let mut values = Vec::<u16>::with_capacity(count);
+                        let buffer = values.spare_capacity_mut();
+                        unsafe {
+                            entry.unchecked_decode_into(&mut buffer[..count])?;
+                            values.set_len(count);
+                        }
+                        values
+                    }
+                    dtype => Err(UnexpectedDType(dtype))?,
+                }
+            }};
+            ($entry:ident into Vec<SampleFormat>) => {{
+                match $entry.dtype {
+                    DType::Short => {
+                        let count = entry.count as usize;
+                        let mut values = Vec::<SampleFormat>::with_capacity(count);
+                        let buffer = values.spare_capacity_mut();
+                        unsafe {
+                            let buffer = std::slice::from_raw_parts_mut(
+                                buffer.as_mut_ptr() as *mut std::mem::MaybeUninit<u16>,
+                                buffer.len(),
+                            );
+                            entry.unchecked_decode_into(&mut buffer[..count])?;
+                            values.set_len(count);
+                        }
+                        values
+                    }
                     dtype => Err(UnexpectedDType(dtype))?,
                 }
             }};
@@ -396,6 +456,15 @@ impl MetadataBuilder {
                 let subfile_type = SubfileType::from_u32(subfile_type);
                 self.subfile_type = Some(subfile_type);
             }
+            Tag::SAMPLES_PER_PIXEL => {
+                self.samples_per_pixel = Some(decode!(entry into u16));
+            }
+            Tag::BITS_PER_SAMPLE => {
+                self.bits_per_sample = Some(decode!(entry into Vec<u16>));
+            }
+            Tag::SAMPLE_FORMAT => {
+                self.sample_format = Some(decode!(entry into Vec<SampleFormat>));
+            }
             Tag::ARTIST => {
                 let artist = decode!(entry into String);
                 self.artist = Some(artist);
@@ -439,6 +508,9 @@ impl MetadataBuilder {
             tile_byte_counts,
             compression,
             subfile_type,
+            samples_per_pixel,
+            bits_per_sample,
+            sample_format: samples_format,
             artist,
             copyright,
             host_computer,
@@ -519,6 +591,33 @@ impl MetadataBuilder {
 
         let subfile_type = subfile_type.unwrap_or_default();
 
+        let samples_per_pixel = samples_per_pixel.unwrap_or(1);
+        let bits_per_sample =
+            bits_per_sample.unwrap_or_else(|| vec![1; samples_per_pixel as usize]);
+        let sample_format = samples_format
+            .unwrap_or_else(|| vec![SampleFormat::default(); samples_per_pixel as usize]);
+
+        if bits_per_sample.len() != samples_per_pixel as usize {
+            return Err(Error::from_args(format_args!(
+                "Number of bits per sample ({}) does not match number of samples per pixel ({})",
+                bits_per_sample.len(),
+                samples_per_pixel
+            )));
+        }
+        if sample_format.len() != samples_per_pixel as usize {
+            return Err(Error::from_args(format_args!(
+                "Number of sample formats ({}) does not match number of samples per pixel ({})",
+                sample_format.len(),
+                samples_per_pixel
+            )));
+        }
+
+        let samples = bits_per_sample
+            .into_iter()
+            .zip(sample_format)
+            .map(|(bits, format)| Sample { bits, format })
+            .collect::<Vec<_>>();
+
         Ok(Metadata {
             dimensions,
             interpretation,
@@ -526,6 +625,7 @@ impl MetadataBuilder {
             chunks,
             compression,
             subfile_type,
+            samples,
             artist,
             copyright,
             host_computer,

@@ -1,6 +1,9 @@
 use std::io::{Read, Seek};
 
-use aira_tiff::{metadata::Layout, Compression, Interpretation, SubfileType};
+use aira_tiff::{
+    metadata::{Layout, Sample},
+    Compression, Interpretation, SampleFormat, SubfileType,
+};
 use claims::*;
 
 mod utils;
@@ -22,6 +25,10 @@ fn decode_metadata() {
     );
     assert_eq!(metadata.compression, Compression::NONE);
     assert_eq!(metadata.subfile_type, SubfileType::default());
+    assert_eq!(
+        metadata.samples(),
+        [Sample::new(SampleFormat::UNSIGNED, 8); 3]
+    );
 
     assert_none!(metadata.artist());
     assert_none!(metadata.copyright());
