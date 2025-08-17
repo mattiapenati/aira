@@ -1,4 +1,4 @@
-//! The value of a entry in a TIFF directory.
+//! The value of an entry in a TIFF directory.
 
 use crate::{decoder, DType, Error, Ratio};
 

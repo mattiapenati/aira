@@ -7,15 +7,19 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-bitflags = "2.9.2"
+bitflags = "2"
 byteorder = "1"
+chrono = { version = "0.4", optional = true, default-features = false }
 flate2 = { version = "1", optional = true, default-features = false, features = [
   "zlib-rs",
 ] }
+jiff = { version = "0.2", optional = true }
 
 [dev-dependencies]
 claims = "0.8"
 
 [features]
 default = ["deflate"]
+chrono = ["dep:chrono"]
 deflate = ["dep:flate2"]
+jiff = ["dep:jiff"]

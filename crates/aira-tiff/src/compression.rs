@@ -7,6 +7,11 @@ mod deflate;
 
 mod packbits;
 
+#[cfg(feature = "deflate")]
+pub use deflate::DeflateReader;
+
+pub use packbits::PackBitsReader;
+
 /// Data compression algorithm.
 #[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Compression(pub u16);
@@ -74,9 +79,9 @@ pub struct DecompressReader<R> {
 #[derive(Debug)]
 enum DecompressReaderInner<R> {
     None(R),
-    PackBits(packbits::PackBitsReader<R>),
+    PackBits(PackBitsReader<R>),
     #[cfg(feature = "deflate")]
-    Deflate(deflate::DeflateReader<R>),
+    Deflate(DeflateReader<R>),
 }
 
 impl<R> DecompressReader<R> {
@@ -87,12 +92,10 @@ impl<R> DecompressReader<R> {
     {
         let inner = match compression {
             Compression::NONE => DecompressReaderInner::None(reader),
-            Compression::PACKBITS => {
-                DecompressReaderInner::PackBits(packbits::PackBitsReader::new(reader))
-            }
+            Compression::PACKBITS => DecompressReaderInner::PackBits(PackBitsReader::new(reader)),
             #[cfg(feature = "deflate")]
             Compression::DEFLATE | Compression::LEGACY_DEFLATE => {
-                DecompressReaderInner::Deflate(deflate::DeflateReader::new(reader))
+                DecompressReaderInner::Deflate(DeflateReader::new(reader))
             }
             unsupported => {
                 return Err(Error::from_args(format_args!(

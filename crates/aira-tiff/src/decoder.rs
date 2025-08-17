@@ -1,6 +1,6 @@
 //! TIFF image raw decoder.
 //!
-//! The [`Decoder`]` type provides a low-level interface to walk through the TIFF file structure.
+//! The [`Decoder`] type provides a low-level interface to walk through the TIFF file structure.
 //! Internally, it doesn't perform any allocations, and it uses the [typestate]-like pattern to
 //! ensure correct traversal of the file structure while minimizing runtime checks.
 //!

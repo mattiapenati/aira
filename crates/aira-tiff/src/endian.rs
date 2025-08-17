@@ -1,4 +1,4 @@
-/// The byte order of the data in the TIFF file.
+/// The byte order of the data.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ByteOrder {
     /// Big-endian byte order, from most significant to least significant.

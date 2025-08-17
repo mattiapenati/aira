@@ -2,9 +2,15 @@
 
 use std::collections::BTreeMap;
 
+#[cfg(feature = "chrono")]
+use chrono::NaiveDateTime as DateTime;
+
+#[cfg(feature = "jiff")]
+use jiff::civil::DateTime;
+
 use crate::{
     decoder, entry::EntryRef, error::ErrorContext, Compression, DType, Entry, Error,
-    Interpretation, SampleFormat, SubfileType, Tag,
+    Interpretation, PlanarConfiguration, Ratio, ResolutionUnit, SampleFormat, SubfileType, Tag,
 };
 
 /// Metadata of TIFF directory.
@@ -20,6 +26,10 @@ pub struct Metadata {
     pub compression: Compression,
     /// A general indication of the kind of data contained in this subfile.
     pub subfile_type: SubfileType,
+    /// How the components of each pixel are stored.
+    pub configuration: PlanarConfiguration,
+    /// The resolution of the image.
+    pub resolution: Option<Resolution>,
     /// Specify how to interpret the pixel data.
     samples: Vec<Sample>,
     /// Person who created the image.
@@ -32,6 +42,13 @@ pub struct Metadata {
     description: Option<String>,
     /// Name and version number of the software package(s) used to create the image.
     software: Option<String>,
+
+    /// Date and time of image creation.
+    #[cfg(any(feature = "chrono", feature = "jiff"))]
+    datetime: Option<DateTime>,
+    #[cfg(not(any(feature = "chrono", feature = "jiff")))]
+    datetime: Option<String>,
+
     /// All the others entries in the directory.
     entries: BTreeMap<Tag, Entry>,
     /// The locations of the chunks that make up the image.
@@ -87,6 +104,17 @@ impl Metadata {
         self.software.as_deref()
     }
 
+    /// Date and time of image creation.
+    #[cfg(any(feature = "chrono", feature = "jiff"))]
+    pub fn datetime(&self) -> Option<DateTime> {
+        self.datetime
+    }
+
+    #[cfg(not(any(feature = "chrono", feature = "jiff")))]
+    pub fn datetime(&self) -> Option<&str> {
+        self.datetime.as_deref()
+    }
+
     /// Returns a tuple with the default width and height of chunks.
     ///
     /// Any chunk in the image will be at most this size, for the size of image data use
@@ -137,6 +165,15 @@ impl Sample {
     pub fn new(format: SampleFormat, bits: u16) -> Self {
         Self { format, bits }
     }
+}
+
+/// The resolution of the image.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Resolution {
+    /// The number of pixels per unit along each direction.
+    pub pixels_per_unit: (Ratio<u32>, Ratio<u32>),
+    /// The unit of measurement for the resolution.
+    pub unit: ResolutionUnit,
 }
 
 /// Storage layout of the image data.
@@ -286,6 +323,10 @@ struct MetadataBuilder {
     tile_byte_counts: Option<Vec<u64>>,
     compression: Option<Compression>,
     subfile_type: Option<SubfileType>,
+    configuration: Option<PlanarConfiguration>,
+    xresolution: Option<Ratio<u32>>,
+    yresolution: Option<Ratio<u32>>,
+    resolution_unit: Option<ResolutionUnit>,
     samples_per_pixel: Option<u16>,
     bits_per_sample: Option<Vec<u16>>,
     sample_format: Option<Vec<SampleFormat>>,
@@ -294,6 +335,7 @@ struct MetadataBuilder {
     host_computer: Option<String>,
     description: Option<String>,
     software: Option<String>,
+    datetime: Option<String>,
     entries: BTreeMap<Tag, Entry>,
 }
 
@@ -307,6 +349,12 @@ impl MetadataBuilder {
             ($entry:ident into u16) => {{
                 match $entry.dtype {
                     DType::Short => $entry.decode::<u16>()?,
+                    dtype => Err(UnexpectedDType(dtype))?,
+                }
+            }};
+            ($entry:ident into Ratio<u32>) => {{
+                match $entry.dtype {
+                    DType::Rational => $entry.decode::<Ratio<u32>>()?,
                     dtype => Err(UnexpectedDType(dtype))?,
                 }
             }};
@@ -456,6 +504,28 @@ impl MetadataBuilder {
                 let subfile_type = SubfileType::from_u32(subfile_type);
                 self.subfile_type = Some(subfile_type);
             }
+            Tag::PLANAR_CONFIGURATION => {
+                let configuration = decode!(entry into u16);
+                let configuration = PlanarConfiguration(configuration);
+                self.configuration = Some(configuration);
+            }
+            Tag::XRESOLUTION => {
+                let xresolution = decode!(entry into Ratio<u32>);
+                self.xresolution = Some(xresolution);
+            }
+            Tag::YRESOLUTION => {
+                let yresolution = decode!(entry into Ratio<u32>);
+                self.yresolution = Some(yresolution);
+            }
+            Tag::RESOLUTION_UNIT => {
+                let resolution_unit = decode!(entry into u16);
+                let resolution_unit = ResolutionUnit(resolution_unit);
+                self.resolution_unit = Some(resolution_unit);
+            }
+            Tag::DATE_TIME => {
+                let datetime = decode!(entry into String);
+                self.datetime = Some(datetime);
+            }
             Tag::SAMPLES_PER_PIXEL => {
                 self.samples_per_pixel = Some(decode!(entry into u16));
             }
@@ -508,9 +578,14 @@ impl MetadataBuilder {
             tile_byte_counts,
             compression,
             subfile_type,
+            configuration,
+            xresolution,
+            yresolution,
+            resolution_unit,
+            datetime,
             samples_per_pixel,
             bits_per_sample,
-            sample_format: samples_format,
+            sample_format,
             artist,
             copyright,
             host_computer,
@@ -591,10 +666,12 @@ impl MetadataBuilder {
 
         let subfile_type = subfile_type.unwrap_or_default();
 
+        let configuration = configuration.unwrap_or_default();
+
         let samples_per_pixel = samples_per_pixel.unwrap_or(1);
         let bits_per_sample =
             bits_per_sample.unwrap_or_else(|| vec![1; samples_per_pixel as usize]);
-        let sample_format = samples_format
+        let sample_format = sample_format
             .unwrap_or_else(|| vec![SampleFormat::default(); samples_per_pixel as usize]);
 
         if bits_per_sample.len() != samples_per_pixel as usize {
@@ -618,6 +695,38 @@ impl MetadataBuilder {
             .map(|(bits, format)| Sample { bits, format })
             .collect::<Vec<_>>();
 
+        #[cfg(feature = "chrono")]
+        let datetime = datetime
+            .map(|datetime| {
+                DateTime::parse_from_str(&datetime, "%Y:%m:%d %H:%M:%S")
+                    .map_err(|err| Error::from_args(format_args!("{err}")))
+                    .with_context(|| "Invalid date and time format, expected 'YYYY:MM:DD HH:MM:SS'")
+            })
+            .transpose()?;
+
+        #[cfg(feature = "jiff")]
+        let datetime = datetime
+            .map(|datetime| {
+                DateTime::strptime("%Y:%m:%d %H:%M:%S", datetime)
+                    .map_err(|err| Error::from_args(format_args!("{err}")))
+                    .with_context(|| "Invalid date and time format, expected 'YYYY:MM:DD HH:MM:SS'")
+            })
+            .transpose()?;
+
+        let resolution_unit = resolution_unit.unwrap_or_default();
+        let resolution = match (xresolution, yresolution) {
+            (Some(xresolution), Some(yresolution)) => Some(Resolution {
+                pixels_per_unit: (xresolution, yresolution),
+                unit: resolution_unit,
+            }),
+            (None, None) => None,
+            _ => {
+                return Err(Error::from_static_str(
+                    "X and Y resolution must be both present or both absent",
+                ))
+            }
+        };
+
         Ok(Metadata {
             dimensions,
             interpretation,
@@ -625,12 +734,15 @@ impl MetadataBuilder {
             chunks,
             compression,
             subfile_type,
-            samples,
+            configuration,
+            resolution,
             artist,
             copyright,
             host_computer,
             description,
             software,
+            datetime,
+            samples,
             entries,
         })
     }

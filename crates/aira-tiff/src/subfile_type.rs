@@ -1,4 +1,4 @@
-/// A general indication of the kind of data contained in this subfile.
+/// A general indication of the kind of data contained in a subfile.
 #[derive(Clone, Copy, Eq, PartialEq)]
 #[repr(transparent)]
 pub struct SubfileType(Inner);

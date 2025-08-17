@@ -1,8 +1,9 @@
 use std::io::{Read, Seek};
 
 use aira_tiff::{
-    metadata::{Layout, Sample},
-    Compression, Interpretation, SampleFormat, SubfileType,
+    metadata::{Layout, Resolution, Sample},
+    Compression, Interpretation, PlanarConfiguration, Ratio, ResolutionUnit, SampleFormat,
+    SubfileType,
 };
 use claims::*;
 
@@ -25,6 +26,14 @@ fn decode_metadata() {
     );
     assert_eq!(metadata.compression, Compression::NONE);
     assert_eq!(metadata.subfile_type, SubfileType::default());
+    assert_eq!(metadata.configuration, PlanarConfiguration::CHUNKY);
+    assert_some_eq!(
+        &metadata.resolution,
+        &Resolution {
+            pixels_per_unit: (Ratio::new(314, 1), Ratio::new(314, 1)),
+            unit: ResolutionUnit::INCH,
+        }
+    );
     assert_eq!(
         metadata.samples(),
         [Sample::new(SampleFormat::UNSIGNED, 8); 3]
@@ -35,6 +44,7 @@ fn decode_metadata() {
     assert_none!(metadata.host_computer());
     assert_none!(metadata.description());
     assert_none!(metadata.software());
+    assert_none!(metadata.datetime());
 
     assert_eq!(metadata.chunk_size(), (32, 128));
     assert_eq!(metadata.chunks_count(), 48);
