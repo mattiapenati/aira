@@ -8,12 +8,6 @@ impl std::fmt::Debug for Interpretation {
     }
 }
 
-impl std::fmt::Display for Interpretation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.name())
-    }
-}
-
 impl Interpretation {
     /// For bilevel and grayscale images: 0 is imaged as white.
     pub const WHITE_IS_ZERO: Self = Self(0);

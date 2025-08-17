@@ -8,12 +8,6 @@ impl std::fmt::Debug for Tag {
     }
 }
 
-impl std::fmt::Display for Tag {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.name())
-    }
-}
-
 impl Tag {
     /* ---------- Baseline TIFF ---------- */
     /// A general indication of the kind of data contained in this subfile.
