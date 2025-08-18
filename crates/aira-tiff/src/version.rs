@@ -2,9 +2,9 @@
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Version {
     /// Classic TIFF.
-    Classic,
+    Classic = 42,
     /// Big TIFF.
-    BigTiff,
+    BigTiff = 43,
 }
 
 #[derive(Debug)]

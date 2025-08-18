@@ -2,9 +2,9 @@
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ByteOrder {
     /// Big-endian byte order, from most significant to least significant.
-    BigEndian,
+    BigEndian = 0x4d4d,
     /// Little-endian byte order, from least significant to most significant.
-    LittleEndian,
+    LittleEndian = 0x4949,
 }
 
 /// Error type for invalid TIFF signatures.
