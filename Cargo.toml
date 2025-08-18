@@ -6,3 +6,6 @@ resolver = "2"
 authors = ["Mattia Penati <mattia.penati@protonmail.com>"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
+
+[workspace.dependencies]
+aira-tiff = { path = "crates/aira-tiff" }

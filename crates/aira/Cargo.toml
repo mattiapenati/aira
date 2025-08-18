@@ -1,0 +1,14 @@
+[package]
+name = "aira"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+aira-tiff.workspace = true
+
+[features]
+default = []
+chrono = ["aira-tiff/chrono"]
+jiff = ["aira-tiff/jiff"]
