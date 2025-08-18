@@ -16,6 +16,16 @@ macro_rules! dtype {
             )*
         }
 
+        impl std::fmt::Debug for DType {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                match self {
+                    $(
+                        Self::$variant => write!(f, "{}({})", stringify!($variant), $value),
+                    )*
+                }
+            }
+        }
+
         impl $name {
             pub(crate) fn try_from_u16(value: u16) -> Result<Self, UnknownDType> {
                 match value {
@@ -31,7 +41,7 @@ macro_rules! dtype {
 
 dtype! {
     /// The datatype of an IFD entry.
-    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[derive(Clone, Copy, Eq, PartialEq)]
     pub enum DType {
         /// 8-bit unsigned integer.
         Byte = 1,
@@ -100,5 +110,30 @@ impl std::fmt::Display for UnknownDType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let value = self.0;
         write!(f, "Unknown datatype {value}")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dtype_fmt_debug() {
+        assert_eq!(format!("{:?}", DType::Byte), "Byte(1)");
+        assert_eq!(format!("{:?}", DType::Ascii), "Ascii(2)");
+        assert_eq!(format!("{:?}", DType::Short), "Short(3)");
+        assert_eq!(format!("{:?}", DType::Long), "Long(4)");
+        assert_eq!(format!("{:?}", DType::Rational), "Rational(5)");
+        assert_eq!(format!("{:?}", DType::SignedByte), "SignedByte(6)");
+        assert_eq!(format!("{:?}", DType::Undefined), "Undefined(7)");
+        assert_eq!(format!("{:?}", DType::SignedShort), "SignedShort(8)");
+        assert_eq!(format!("{:?}", DType::SignedLong), "SignedLong(9)");
+        assert_eq!(format!("{:?}", DType::SignedRational), "SignedRational(10)");
+        assert_eq!(format!("{:?}", DType::Float), "Float(11)");
+        assert_eq!(format!("{:?}", DType::Double), "Double(12)");
+        assert_eq!(format!("{:?}", DType::Ifd), "Ifd(13)");
+        assert_eq!(format!("{:?}", DType::BigLong), "BigLong(16)");
+        assert_eq!(format!("{:?}", DType::BigSignedLong), "BigSignedLong(17)");
+        assert_eq!(format!("{:?}", DType::BigIfd), "BigIfd(18)");
     }
 }
