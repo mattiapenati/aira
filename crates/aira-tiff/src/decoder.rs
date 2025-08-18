@@ -93,13 +93,13 @@ impl<R> Decoder<R> {
 
     /// Get an iterator over the directories of the TIFF image.
     pub fn directories(&mut self) -> Directories<'_, R> {
-        let next_offset = match self.version {
+        let next_offset_loc = match self.version {
             Version::Classic => 4,
             Version::BigTiff => 8,
         };
         Directories {
             decoder: self,
-            next_offset: Some(next_offset),
+            next_offset_loc: Some(next_offset_loc),
         }
     }
 }
@@ -109,7 +109,7 @@ impl<R> Decoder<R> {
 pub struct Directories<'tiff, R> {
     decoder: &'tiff mut Decoder<R>,
     /// The position of the next offset value.
-    next_offset: Option<u64>,
+    next_offset_loc: Option<u64>,
 }
 
 impl<R> Directories<'_, R> {
@@ -120,28 +120,26 @@ impl<R> Directories<'_, R> {
     {
         use std::io::Seek;
 
-        let Some(next_offset) = self.next_offset else {
+        let Some(next_offset_loc) = self.next_offset_loc else {
             return Ok(None);
         };
 
         // Move to `next_offset` and read the offset of the current directory.
         self.decoder
             .reader
-            .seek(std::io::SeekFrom::Start(next_offset))?;
-        let next_ifd_offset = match self.decoder.version {
+            .seek(std::io::SeekFrom::Start(next_offset_loc))?;
+        let offset = match self.decoder.version {
             Version::Classic => self.decoder.reader.read_u32()? as u64,
             Version::BigTiff => self.decoder.reader.read_u64()?,
         };
 
-        if next_ifd_offset == 0 {
-            self.next_offset = None;
+        if offset == 0 {
+            self.next_offset_loc = None;
             return Ok(None);
         }
 
         // Move to the beginning of the next directory.
-        self.decoder
-            .reader
-            .seek(std::io::SeekFrom::Start(next_ifd_offset))?;
+        self.decoder.reader.seek(std::io::SeekFrom::Start(offset))?;
 
         let entries_count = match self.decoder.version {
             Version::Classic => self.decoder.reader.read_u16()? as u64,
@@ -152,18 +150,26 @@ impl<R> Directories<'_, R> {
             Version::Classic => 12,
             Version::BigTiff => 20,
         };
-        self.next_offset = Some(
-            entries_count
-                .checked_mul(entry_size)
-                .unwrap()
-                .checked_add(first_entry_offset)
-                .unwrap(),
-        );
+        let next_offset_loc = entries_count
+            .checked_mul(entry_size)
+            .unwrap()
+            .checked_add(first_entry_offset)
+            .unwrap();
+        self.next_offset_loc = Some(next_offset_loc);
+
+        self.decoder
+            .reader
+            .seek(std::io::SeekFrom::Start(next_offset_loc))?;
+        let next_offset = match self.decoder.version {
+            Version::Classic => self.decoder.reader.read_u32()? as u64,
+            Version::BigTiff => self.decoder.reader.read_u64()?,
+        };
 
         Ok(Some(Directory {
             decoder: self.decoder,
             entries_count,
-            first_entry_offset,
+            offset,
+            next_offset,
         }))
     }
 }
@@ -173,23 +179,34 @@ impl<R> Directories<'_, R> {
 pub struct Directory<'tiff, R> {
     decoder: &'tiff mut Decoder<R>,
     /// The number of entries in the directory.
-    entries_count: u64,
-    /// The offset of the first entry in the directory.
-    first_entry_offset: u64,
+    pub entries_count: u64,
+    /// The offset of the current directory.
+    pub offset: u64,
+    /// The offset of the next directory.
+    pub next_offset: u64,
 }
 
 impl<'tiff, R> Directory<'tiff, R> {
-    /// Get the number of entries in the directory.
-    pub fn entries_count(&self) -> u64 {
-        self.entries_count
-    }
-
     /// Get an iterator over the entries of the directory.
     pub fn entries(self) -> Entries<'tiff, R> {
+        let Self {
+            decoder,
+            entries_count,
+            offset,
+            ..
+        } = self;
+
+        let entry_offset = offset
+            .checked_add(match decoder.version {
+                Version::Classic => size_of::<u16>(),
+                Version::BigTiff => size_of::<u64>(),
+            } as u64)
+            .unwrap();
+
         Entries {
-            decoder: self.decoder,
-            entries_count: self.entries_count,
-            entry_offset: self.first_entry_offset,
+            decoder,
+            entries_count,
+            entry_offset,
         }
     }
 }
