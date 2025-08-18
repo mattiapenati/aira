@@ -8,4 +8,11 @@ edition = "2024"
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
+aira = { path = "crates/aira" }
 aira-tiff = { path = "crates/aira-tiff" }
+
+[profile.release]
+codegen-units = 1
+lto = true
+panic = "abort"
+strip = true

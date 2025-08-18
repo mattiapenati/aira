@@ -27,6 +27,15 @@ macro_rules! dtype {
         }
 
         impl $name {
+            /// Returns the name of the type.
+            pub fn name(&self) -> &'static str {
+                match self {
+                    $(
+                        Self::$variant => stringify!($variant),
+                    )*
+                }
+            }
+
             pub(crate) fn try_from_u16(value: u16) -> Result<Self, UnknownDType> {
                 match value {
                     $(
@@ -42,6 +51,7 @@ macro_rules! dtype {
 dtype! {
     /// The datatype of an IFD entry.
     #[derive(Clone, Copy, Eq, PartialEq)]
+    #[repr(u16)]
     pub enum DType {
         /// 8-bit unsigned integer.
         Byte = 1,

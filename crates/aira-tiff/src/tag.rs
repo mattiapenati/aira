@@ -310,7 +310,7 @@ impl Tag {
 
 impl Tag {
     /// Returns the name of the tag if known, otherwise "Unknown" is returned.
-    fn name(&self) -> &'static str {
+    pub fn name(&self) -> &'static str {
         match *self {
             /* ---------- Baseline TIFF ---------- */
             Self::NEW_SUBFILE_TYPE => "NewSubfileType",
