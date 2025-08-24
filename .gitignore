@@ -1,3 +1,4 @@
 /.jj
 /target
+/crates/aira-bench/target
 /cobertura.xml
