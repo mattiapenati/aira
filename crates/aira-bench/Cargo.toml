@@ -1,0 +1,23 @@
+[package]
+publish = false
+name = "aira-bench"
+description = "Benchmark suite for aira"
+version = "0.1.0"
+authors = ["Mattia Penati <mattia.penati@protonmail.com>"]
+edition = "2024"
+license = "MIT OR Apache-2.0"
+
+[lib]
+doc = false
+test = false
+
+[[bench]]
+path = "src/bench.rs"
+name = "aira-bench"
+harness = false
+
+[dev-dependencies]
+aira = { path = "../aira" }
+claims = "0.8"
+criterion = { version = "0.7", default-features = false }
+fastrand = "2"

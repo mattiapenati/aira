@@ -18,3 +18,7 @@ test:
 # Create coverage report
 coverage:
   cargo tarpaulin --workspace --out xml
+
+# Run the whole benchmark suite
+bench *ARGS:
+  cargo bench -p aira-bench --bench aira-bench -- --output-format bencher {{ARGS}}
