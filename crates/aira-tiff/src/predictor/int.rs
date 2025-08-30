@@ -113,7 +113,7 @@ fn build_decoder(
     samples: u16,
     bytespersample: u16,
 ) -> Result<Box<dyn Decoder>, Error> {
-    use byteorder::{BE, LE};
+    use aira_byteorder::{BE, LE};
 
     let decoder: Box<dyn Decoder> = match (byteorder, samples, bytespersample) {
         (_, 1, 1) => Box::new(fixed::decode_u8::<1> as fn(&mut [u8])),
@@ -225,16 +225,19 @@ macro_rules! impl_decode_uint {
             }
         }
 
-        impl<B: byteorder::ByteOrder> Decoder for $name<B> {
+        impl<B> Decoder for $name<B>
+        where
+            B: aira_byteorder::ByteOrder,
+        {
             fn decode(&mut self, row: &mut [u8]) {
-                use byteorder::ByteOrder;
+                use aira_byteorder::ByteOrder;
 
                 let pixel_size = size_of_val(&self.acc[..]);
 
                 let mut pixels = row.chunks_exact_mut(pixel_size);
                 if let Some(first_pixel) = pixels.next() {
                     B::$read_into(first_pixel, &mut self.acc);
-                    byteorder::NativeEndian::$write_into(&self.acc, first_pixel);
+                    aira_byteorder::NativeEndian::$write_into(&self.acc, first_pixel);
 
                     for pixel in &mut pixels {
                         B::$read_into(pixel, &mut self.buffer);
@@ -244,7 +247,7 @@ macro_rules! impl_decode_uint {
                             .for_each(|(acc, &sample)| {
                                 *acc = acc.wrapping_add(sample);
                             });
-                        byteorder::NativeEndian::$write_into(&self.acc, pixel);
+                        aira_byteorder::NativeEndian::$write_into(&self.acc, pixel);
                     }
                 }
 
@@ -254,14 +257,14 @@ macro_rules! impl_decode_uint {
     };
 }
 
-impl_decode_uint![DecodeU16 using (read_u16_into, write_u16_into) -> u16];
-impl_decode_uint![DecodeU32 using (read_u32_into, write_u32_into) -> u32];
-impl_decode_uint![DecodeU64 using (read_u64_into, write_u64_into) -> u64];
+impl_decode_uint![DecodeU16 using (read_slice_u16, write_slice_u16) -> u16];
+impl_decode_uint![DecodeU32 using (read_slice_u32, write_slice_u32) -> u32];
+impl_decode_uint![DecodeU64 using (read_slice_u64, write_slice_u64) -> u64];
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use byteorder::{BE, LE};
+    use aira_byteorder::{BE, LE};
 
     fn as_mut_bytes<T>(values: &mut [T]) -> &mut [u8] {
         unsafe { std::slice::from_raw_parts_mut(values.as_ptr() as *mut u8, size_of_val(values)) }

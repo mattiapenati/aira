@@ -27,8 +27,8 @@ pub fn decode_u8<const N: usize>(row: &mut [u8]) {
 
 macro_rules! impl_decode_uintxn {
     ($name:ident using ($read:ident, $write:ident) -> $ty:ident) => {
-        pub fn $name<const N: usize, B: byteorder::ByteOrder>(row: &mut [u8]) {
-            use byteorder::ByteOrder;
+        pub fn $name<const N: usize, B: aira_byteorder::ByteOrder>(row: &mut [u8]) {
+            use aira_byteorder::ByteOrder;
 
             let pixel_size = size_of::<[$ty; N]>();
             let sample_size = size_of::<$ty>();
@@ -36,17 +36,18 @@ macro_rules! impl_decode_uintxn {
             let mut pixels = row.chunks_exact_mut(pixel_size);
             if let Some(first_pixel) = pixels.next() {
                 let mut acc: [$ty; N] = [0; N];
+
                 let samples = first_pixel.chunks_mut(sample_size);
                 acc.iter_mut().zip(samples).for_each(|(acc, sample)| {
                     *acc = B::$read(sample);
-                    byteorder::NativeEndian::$write(sample, *acc);
+                    aira_byteorder::NativeEndian::$write(*acc, sample);
                 });
 
                 for pixel in &mut pixels {
                     let samples = pixel.chunks_mut(sample_size);
                     acc.iter_mut().zip(samples).for_each(|(acc, sample)| {
                         *acc = acc.wrapping_add(B::$read(sample));
-                        byteorder::NativeEndian::$write(sample, *acc);
+                        aira_byteorder::NativeEndian::$write(*acc, sample);
                     });
                 }
             }
@@ -63,7 +64,7 @@ impl_decode_uintxn!(decode_u64 using (read_u64, write_u64) -> u64);
 mod tests {
     use std::iter::repeat_with;
 
-    use byteorder::{BE, LE};
+    use aira_byteorder::{BE, LE};
 
     use crate::predictor::int::{DecodeU16, DecodeU32, DecodeU64, DecodeU8, Decoder};
 

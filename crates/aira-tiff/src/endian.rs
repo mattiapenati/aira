@@ -87,10 +87,11 @@ pub(crate) mod sealed {
         $(
             #[inline(always)]
             pub fn $name(&mut self) -> std::io::Result<$ty> {
-                use byteorder::ReadBytesExt;
+                use aira_byteorder::ReadBytesExt;
+
                 match self.byteorder {
-                    ByteOrder::BigEndian => self.reader.$name::<byteorder::BigEndian>(),
-                    ByteOrder::LittleEndian => self.reader.$name::<byteorder::LittleEndian>(),
+                    ByteOrder::BigEndian => self.reader.$name::<aira_byteorder::BE>(),
+                    ByteOrder::LittleEndian => self.reader.$name::<aira_byteorder::LE>(),
                 }
             }
         )+
@@ -99,10 +100,11 @@ pub(crate) mod sealed {
         $(
             #[inline(always)]
             pub fn $name(&mut self, buffer: &mut [$ty]) -> std::io::Result<()> {
-                use byteorder::ReadBytesExt;
+                use aira_byteorder::ReadBytesExt;
+
                 match self.byteorder {
-                    ByteOrder::BigEndian => self.reader.$name::<byteorder::BigEndian>(buffer),
-                    ByteOrder::LittleEndian => self.reader.$name::<byteorder::LittleEndian>(buffer),
+                    ByteOrder::BigEndian => self.reader.$name::<aira_byteorder::BE>(buffer),
+                    ByteOrder::LittleEndian => self.reader.$name::<aira_byteorder::LE>(buffer),
                 }
             }
         )+
@@ -112,13 +114,13 @@ pub(crate) mod sealed {
     impl<R: std::io::Read> EndianReader<R> {
         #[inline(always)]
         pub fn read_u8(&mut self) -> std::io::Result<u8> {
-            use byteorder::ReadBytesExt;
+            use aira_byteorder::ReadBytesExt;
             self.reader.read_u8()
         }
 
         #[inline(always)]
         pub fn read_i8(&mut self) -> std::io::Result<i8> {
-            use byteorder::ReadBytesExt;
+            use aira_byteorder::ReadBytesExt;
             self.reader.read_i8()
         }
 
@@ -141,7 +143,7 @@ pub(crate) mod sealed {
 
         #[inline(always)]
         pub fn read_i8_into(&mut self, buffer: &mut [i8]) -> std::io::Result<()> {
-            use byteorder::ReadBytesExt;
+            use aira_byteorder::ReadBytesExt;
             self.reader.read_i8_into(buffer)
         }
 

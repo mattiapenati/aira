@@ -52,8 +52,8 @@ dependencies = [
 name = "aira-tiff"
 version = "0.1.0"
 dependencies = [
+ "aira-byteorder",
  "bitflags",
- "byteorder",
  "cfg-if",
  "chrono",
  "claims",
@@ -135,12 +135,6 @@ name = "bitflags"
 version = "2.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34efbcccd345379ca2868b2b2c9d3782e9cc58ba87bc7d79d5b53d9c9ae6f25d"
-
-[[package]]
-name = "byteorder"
-version = "1.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
 
 [[package]]
 name = "cast"

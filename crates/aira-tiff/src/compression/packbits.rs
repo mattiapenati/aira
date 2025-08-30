@@ -30,7 +30,7 @@ where
     R: std::io::Read,
 {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        use byteorder::ReadBytesExt;
+        use aira_byteorder::ReadBytesExt;
 
         let mut start = 0;
 

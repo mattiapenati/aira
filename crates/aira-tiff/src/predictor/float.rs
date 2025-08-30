@@ -106,7 +106,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use byteorder::{NativeEndian, ReadBytesExt};
+    use aira_byteorder::{NativeEndian, ReadBytesExt};
     use claims::*;
 
     use super::*;
