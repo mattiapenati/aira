@@ -1,0 +1,19 @@
+[package]
+name = "aira-byteorder"
+version = "0.1.0"
+description = "Decode/encode numbers with specified byte order"
+keywords = ["byteorder", "endian", "simd"]
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+default = ["std"]
+std = []
+
+f16 = []
+f128 = []
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

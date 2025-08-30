@@ -9,6 +9,7 @@ license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
 aira = { path = "crates/aira" }
+aira-byteorder = { path = "crates/aira-byteorder" }
 aira-tiff = { path = "crates/aira-tiff" }
 
 [profile.release]

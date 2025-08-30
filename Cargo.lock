@@ -21,6 +21,7 @@ dependencies = [
 name = "aira"
 version = "0.1.0"
 dependencies = [
+ "aira-byteorder",
  "aira-tiff",
 ]
 
@@ -33,6 +34,10 @@ dependencies = [
  "criterion",
  "fastrand",
 ]
+
+[[package]]
+name = "aira-byteorder"
+version = "0.1.0"
 
 [[package]]
 name = "aira-cli"

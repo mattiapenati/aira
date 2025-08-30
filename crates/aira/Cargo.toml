@@ -6,9 +6,17 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+aira-byteorder.workspace = true
 aira-tiff.workspace = true
 
 [features]
 default = []
 chrono = ["aira-tiff/chrono"]
 jiff = ["aira-tiff/jiff"]
+
+f16 = ["aira-byteorder/f16"]
+f128 = ["aira-byteorder/f128"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
