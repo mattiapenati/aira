@@ -2,9 +2,17 @@ use std::marker::PhantomData;
 
 use crate::{ByteOrder, Error};
 
+mod fixed;
+
 /// A trait for decoding a row of data in-place.
 trait Decoder {
     fn decode(&mut self, row: &mut [u8]);
+}
+
+impl Decoder for fn(&mut [u8]) {
+    fn decode(&mut self, row: &mut [u8]) {
+        self(row)
+    }
 }
 
 /// Decode a single row of data in-place.
@@ -107,24 +115,51 @@ fn build_decoder(
 ) -> Result<Box<dyn Decoder>, Error> {
     use byteorder::{BE, LE};
 
-    let decoder: Box<dyn Decoder> = match bytespersample {
-        1 => Box::new(DecodeU8::new(samples)),
-        2 => match byteorder {
-            ByteOrder::BigEndian => Box::new(DecodeU16::<BE>::new(samples)),
-            ByteOrder::LittleEndian => Box::new(DecodeU16::<LE>::new(samples)),
-        },
-        4 => match byteorder {
-            ByteOrder::BigEndian => Box::new(DecodeU32::<BE>::new(samples)),
-            ByteOrder::LittleEndian => Box::new(DecodeU32::<LE>::new(samples)),
-        },
-        8 => match byteorder {
-            ByteOrder::BigEndian => Box::new(DecodeU64::<BE>::new(samples)),
-            ByteOrder::LittleEndian => Box::new(DecodeU64::<LE>::new(samples)),
-        },
+    let decoder: Box<dyn Decoder> = match (byteorder, samples, bytespersample) {
+        (_, 1, 1) => Box::new(fixed::decode_u8::<1> as fn(&mut [u8])),
+        (_, 2, 1) => Box::new(fixed::decode_u8::<2> as fn(&mut [u8])),
+        (_, 3, 1) => Box::new(fixed::decode_u8::<3> as fn(&mut [u8])),
+        (_, 4, 1) => Box::new(fixed::decode_u8::<4> as fn(&mut [u8])),
+        (_, n, 1) => Box::new(DecodeU8::new(n)),
+
+        (ByteOrder::BigEndian, 1, 2) => Box::new(fixed::decode_u16::<1, BE> as fn(&mut [u8])),
+        (ByteOrder::LittleEndian, 1, 2) => Box::new(fixed::decode_u16::<1, LE> as fn(&mut [u8])),
+        (ByteOrder::BigEndian, 2, 2) => Box::new(fixed::decode_u16::<2, BE> as fn(&mut [u8])),
+        (ByteOrder::LittleEndian, 2, 2) => Box::new(fixed::decode_u16::<2, LE> as fn(&mut [u8])),
+        (ByteOrder::BigEndian, 3, 2) => Box::new(fixed::decode_u16::<3, BE> as fn(&mut [u8])),
+        (ByteOrder::LittleEndian, 3, 2) => Box::new(fixed::decode_u16::<3, LE> as fn(&mut [u8])),
+        (ByteOrder::BigEndian, 4, 2) => Box::new(fixed::decode_u16::<4, BE> as fn(&mut [u8])),
+        (ByteOrder::LittleEndian, 4, 2) => Box::new(fixed::decode_u16::<4, LE> as fn(&mut [u8])),
+        (ByteOrder::BigEndian, n, 2) => Box::new(DecodeU16::<BE>::new(n)),
+        (ByteOrder::LittleEndian, n, 2) => Box::new(DecodeU16::<LE>::new(n)),
+
+        (ByteOrder::BigEndian, 1, 4) => Box::new(fixed::decode_u32::<1, BE> as fn(&mut [u8])),
+        (ByteOrder::LittleEndian, 1, 4) => Box::new(fixed::decode_u32::<1, LE> as fn(&mut [u8])),
+        (ByteOrder::BigEndian, 2, 4) => Box::new(fixed::decode_u32::<2, BE> as fn(&mut [u8])),
+        (ByteOrder::LittleEndian, 2, 4) => Box::new(fixed::decode_u32::<2, LE> as fn(&mut [u8])),
+        (ByteOrder::BigEndian, 3, 4) => Box::new(fixed::decode_u32::<3, BE> as fn(&mut [u8])),
+        (ByteOrder::LittleEndian, 3, 4) => Box::new(fixed::decode_u32::<3, LE> as fn(&mut [u8])),
+        (ByteOrder::BigEndian, 4, 4) => Box::new(fixed::decode_u32::<4, BE> as fn(&mut [u8])),
+        (ByteOrder::LittleEndian, 4, 4) => Box::new(fixed::decode_u32::<4, LE> as fn(&mut [u8])),
+        (ByteOrder::BigEndian, n, 4) => Box::new(DecodeU32::<BE>::new(n)),
+        (ByteOrder::LittleEndian, n, 4) => Box::new(DecodeU32::<LE>::new(n)),
+
+        (ByteOrder::BigEndian, 1, 8) => Box::new(fixed::decode_u64::<1, BE> as fn(&mut [u8])),
+        (ByteOrder::LittleEndian, 1, 8) => Box::new(fixed::decode_u64::<1, LE> as fn(&mut [u8])),
+        (ByteOrder::BigEndian, 2, 8) => Box::new(fixed::decode_u64::<2, BE> as fn(&mut [u8])),
+        (ByteOrder::LittleEndian, 2, 8) => Box::new(fixed::decode_u64::<2, LE> as fn(&mut [u8])),
+        (ByteOrder::BigEndian, 3, 8) => Box::new(fixed::decode_u64::<3, BE> as fn(&mut [u8])),
+        (ByteOrder::LittleEndian, 3, 8) => Box::new(fixed::decode_u64::<3, LE> as fn(&mut [u8])),
+        (ByteOrder::BigEndian, 4, 8) => Box::new(fixed::decode_u64::<4, BE> as fn(&mut [u8])),
+        (ByteOrder::LittleEndian, 4, 8) => Box::new(fixed::decode_u64::<4, LE> as fn(&mut [u8])),
+        (ByteOrder::BigEndian, n, 8) => Box::new(DecodeU64::<BE>::new(n)),
+        (ByteOrder::LittleEndian, n, 8) => Box::new(DecodeU64::<LE>::new(n)),
+
         _ => {
             return Err(Error::from_args(format_args!(
-                "Bytes per sample must be 1, 2, 4 or 8, got {bytespersample}",
-            )))
+                "Pixel with {} samples with size {} cannot be decoded using integer predictor",
+                samples, bytespersample
+            )));
         }
     };
 

@@ -52,6 +52,7 @@ dependencies = [
  "cfg-if",
  "chrono",
  "claims",
+ "fastrand",
  "flate2",
  "jiff",
 ]
